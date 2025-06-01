@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1 class="mb-4">Dashboard</h1>
+
+  <div id="market-summary" class="alert alert-info">
+    Fetching market summary...
+  </div>
+
+  <h3>Live Prices</h3>
+  <p>Enter comma-separated CoinGecko IDs (e.g. <code>bitcoin,ethereum,ripple</code>) and click “Get Prices.”</p>
+  <div class="input-group mb-3">
+    <input
+      type="text"
+      class="form-control"
+      id="coins-input"
+      placeholder="bitcoin,ethereum,ripple"
+      value="bitcoin,ethereum,ripple,litecoin"
+    />
+    <button id="get-prices" class="btn btn-primary">Get Prices</button>
+  </div>
+
+  <table class="table table-striped coin-table">
+    <thead>
+      <tr>
+        <th>Coin</th>
+        <th>Price (USD)</th>
+      </tr>
+    </thead>
+    <tbody id="prices-body">
+      <!-- JS will fill this -->
+    </tbody>
+  </table>
+
+  <script>
+    async function fetchMarketSummary() {
+      try {
+        const resp = await fetch('/api/market_summary');
+        const data = await resp.json();
+        if (data.summary) {
+          document.getElementById('market-summary').textContent = data.summary;
+        } else {
+          document.getElementById('market-summary').textContent = 'Error fetching summary.';
+        }
+      } catch (err) {
+        document.getElementById('market-summary').textContent = 'Error: ' + err;
+      }
+    }
+
+    async function fetchPrices() {
+      const input = document.getElementById('coins-input').value.trim();
+      if (!input) return;
+      document.getElementById('prices-body').innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
+      try {
+        const resp = await fetch(`/api/prices?coins=${encodeURIComponent(input)}`);
+        const data = await resp.json();
+        if (data.error) {
+          document.getElementById('prices-body').innerHTML =
+            `<tr><td colspan="2" class="text-danger">${data.error}</td></tr>`;
+          return;
+        }
+        let rows = '';
+        for (const [coin, obj] of Object.entries(data)) {
+          const price = obj.usd !== undefined ? obj.usd.toLocaleString('en-US', {style:'currency', currency:'USD'}) : 'N/A';
+          rows += `<tr><td>${coin.charAt(0).toUpperCase() + coin.slice(1)}</td><td>${price}</td></tr>`;
+        }
+        document.getElementById('prices-body').innerHTML = rows || '<tr><td colspan="2">No data.</td></tr>';
+      } catch (err) {
+        document.getElementById('prices-body').innerHTML =
+          `<tr><td colspan="2" class="text-danger">Fetch error: ${err}</td></tr>`;
+      }
+    }
+
+    document.getElementById('get-prices').addEventListener('click', fetchPrices);
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchMarketSummary();
+      fetchPrices();
+    });
+  </script>
+{% endblock %}

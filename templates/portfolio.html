@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1 class="mb-4">Portfolio</h1>
+
+  <!-- Form: Add / Update -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form id="portfolio-form">
+        <div class="row g-2">
+          <div class="col-md-5">
+            <input
+              type="text"
+              class="form-control"
+              id="portfolio-coin"
+              placeholder="CoinGecko ID (e.g. bitcoin)"
+              required
+            />
+          </div>
+          <div class="col-md-5">
+            <input
+              type="number"
+              step="any"
+              class="form-control"
+              id="portfolio-amount"
+              placeholder="Amount Held (e.g. 1.234)"
+              required
+            />
+          </div>
+          <div class="col-md-2">
+            <button type="submit" class="btn btn-success w-100">Add / Update</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Portfolio Table -->
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Coin</th>
+        <th>Amount</th>
+        <th>Current Price (USD)</th>
+        <th>Value (USD)</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="portfolio-body">
+      <!-- JS will insert rows -->
+    </tbody>
+  </table>
+
+  <script>
+    async function loadPortfolio() {
+      document.getElementById('portfolio-body').innerHTML = 
+        '<tr><td colspan="5">Loading portfolio...</td></tr>';
+      try {
+        const resp = await fetch('/api/portfolio');
+        const items = await resp.json();
+        if (!Array.isArray(items)) {
+          document.getElementById('portfolio-body').innerHTML =
+            `<tr><td colspan="5" class="text-danger">Error loading.</td></tr>`;
+          return;
+        }
+        // Gather all coin IDs to fetch prices in one call
+        const coins = items.map(it => it.coin).join(',');
+        const pricesResp = await fetch(`/api/prices?coins=${encodeURIComponent(coins)}`);
+        const pricesData = await pricesResp.json();
+
+        let rows = '';
+        for (const item of items) {
+          const coin = item.coin;
+          const amount = Number(item.amount);
+          const priceObj = pricesData[coin];
+          const price = priceObj && priceObj.usd !== undefined ? priceObj.usd : null;
+          const value = price !== null ? (price * amount).toLocaleString('en-US', {style:'currency', currency:'USD'}) : 'N/A';
+          const priceFormatted = price !== null ? price.toLocaleString('en-US', {style:'currency', currency:'USD'}) : 'N/A';
+
+          rows += `
+            <tr>
+              <td>${coin.charAt(0).toUpperCase() + coin.slice(1)}</td>
+              <td>${amount}</td>
+              <td>${priceFormatted}</td>
+              <td>${value}</td>
+              <td>
+                <button 
+                  class="btn btn-sm btn-danger" 
+                  onclick="deletePortfolio('${item._id}')">
+                  Delete
+                </button>
+              </td>
+            </tr>`;
+        }
+        document.getElementById('portfolio-body').innerHTML = rows || 
+          '<tr><td colspan="5">No portfolio items.</td></tr>';
+      } catch (err) {
+        document.getElementById('portfolio-body').innerHTML =
+          `<tr><td colspan="5" class="text-danger">Error: ${err}</td></tr>`;
+      }
+    }
+
+    async function addOrUpdatePortfolio(evt) {
+      evt.preventDefault();
+      const coinInput = document.getElementById('portfolio-coin').value.trim().toLowerCase();
+      const amtInput  = document.getElementById('portfolio-amount').value.trim();
+
+      if (!coinInput || !amtInput) return;
+
+      try {
+        const resp = await fetch('/api/portfolio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ coin: coinInput, amount: amtInput })
+        });
+        const data = await resp.json();
+        if (data.error) {
+          alert("Error: " + data.error);
+          return;
+        }
+        document.getElementById('portfolio-coin').value = '';
+        document.getElementById('portfolio-amount').value = '';
+        loadPortfolio();
+      } catch (err) {
+        alert("Fetch error: " + err);
+      }
+    }
+
+    async function deletePortfolio(id) {
+      if (!confirm("Delete this portfolio entry?")) return;
+      try {
+        const resp = await fetch(`/api/portfolio/${id}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (data.error) {
+          alert("Error: " + data.error);
+          return;
+        }
+        loadPortfolio();
+      } catch (err) {
+        alert("Fetch error: " + err);
+      }
+    }
+
+    document.getElementById('portfolio-form').addEventListener('submit', addOrUpdatePortfolio);
+    window.addEventListener('DOMContentLoaded', loadPortfolio);
+  </script>
+{% endblock %}

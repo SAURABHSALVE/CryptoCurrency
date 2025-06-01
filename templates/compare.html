@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1 class="mb-4">Compare Coins</h1>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <form id="compare-form">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <input
+              type="text"
+              class="form-control"
+              id="compare-coin1"
+              placeholder="Coin 1 ID (e.g. bitcoin)"
+              required
+            />
+          </div>
+          <div class="col-md-4">
+            <input
+              type="text"
+              class="form-control"
+              id="compare-coin2"
+              placeholder="Coin 2 ID (e.g. ethereum)"
+              required
+            />
+          </div>
+          <div class="col-md-4">
+            <button type="submit" class="btn btn-primary w-100">Compare</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="compare-result">
+    <!-- JS will insert comparison -->
+  </div>
+
+  <script>
+    async function doCompare(evt) {
+      evt.preventDefault();
+      const coin1 = document.getElementById('compare-coin1').value.trim().toLowerCase();
+      const coin2 = document.getElementById('compare-coin2').value.trim().toLowerCase();
+      if (!coin1 || !coin2) return;
+
+      document.getElementById('compare-result').innerHTML = '<div>Loading...</div>';
+      try {
+        const resp = await fetch(`/api/compare?coin1=${encodeURIComponent(coin1)}&coin2=${encodeURIComponent(coin2)}`);
+        const data = await resp.json();
+        if (data.error) {
+          document.getElementById('compare-result').innerHTML = 
+            `<div class="text-danger">Error: ${data.error}</div>`;
+          return;
+        }
+        const { price1, price2, difference } = data;
+        const differenceFormatted = difference.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+        document.getElementById('compare-result').innerHTML = `
+          <div class="card">
+            <div class="card-body">
+              <p>
+                <strong>${coin1.charAt(0).toUpperCase()+coin1.slice(1)}:</strong> 
+                ${price1.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}<br>
+                <strong>${coin2.charAt(0).toUpperCase()+coin2.slice(1)}:</strong> 
+                ${price2.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}<br>
+                <strong>Difference (coin1 - coin2):</strong> ${differenceFormatted}
+              </p>
+            </div>
+          </div>`;
+      } catch (err) {
+        document.getElementById('compare-result').innerHTML = 
+          `<div class="text-danger">Fetch error: ${err}</div>`;
+      }
+    }
+
+    document.getElementById('compare-form').addEventListener('submit', doCompare);
+  </script>
+{% endblock %}

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1 class="mb-4">Alerts</h1>
+
+  <!-- Form: Add Alert -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form id="alert-form">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-3">
+            <input
+              type="text"
+              class="form-control"
+              id="alert-coin"
+              placeholder="Coin ID (e.g. bitcoin)"
+              required
+            />
+          </div>
+          <div class="col-md-3">
+            <select class="form-select" id="alert-condition" required>
+              <option value="" disabled selected>Condition</option>
+              <option value="above">Above</option>
+              <option value="below">Below</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <input
+              type="number"
+              step="any"
+              class="form-control"
+              id="alert-price"
+              placeholder="Price (USD)"
+              required
+            />
+          </div>
+          <div class="col-md-3">
+            <button type="submit" class="btn btn-warning w-100">Add Alert</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Alerts Table -->
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>Coin</th>
+        <th>Condition</th>
+        <th>Price (USD)</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="alerts-body">
+      <!-- JS will fill -->
+    </tbody>
+  </table>
+
+  <script>
+    async function loadAlerts() {
+      document.getElementById('alerts-body').innerHTML = 
+        '<tr><td colspan="5">Loading alerts...</td></tr>';
+      try {
+        const resp = await fetch('/api/alerts');
+        const items = await resp.json();
+        if (!Array.isArray(items)) {
+          document.getElementById('alerts-body').innerHTML =
+            `<tr><td colspan="5" class="text-danger">Error loading.</td></tr>`;
+          return;
+        }
+
+        // Fetch current prices for all alerted coins
+        const coinSet = Array.from(new Set(items.map(it => it.coin)));
+        const pricesResp = await fetch(`/api/prices?coins=${encodeURIComponent(coinSet.join(','))}`);
+        const pricesData = await pricesResp.json();
+
+        let rows = '';
+        for (const it of items) {
+          const coin = it.coin;
+          const cond = it.condition;
+          const triggerPrice = Number(it.price);
+          const currentPrice = pricesData[coin]?.usd ?? null;
+
+          let status = 'N/A';
+          if (currentPrice !== null) {
+            if (cond === 'above' && currentPrice > triggerPrice) {
+              status = 'Triggered';
+            } else if (cond === 'below' && currentPrice < triggerPrice) {
+              status = 'Triggered';
+            } else {
+              status = 'Not Triggered';
+            }
+          }
+
+          rows += `
+            <tr>
+              <td>${coin.charAt(0).toUpperCase() + coin.slice(1)}</td>
+              <td>${cond.charAt(0).toUpperCase() + cond.slice(1)}</td>
+              <td>${triggerPrice.toLocaleString('en-US', {style:'currency', currency:'USD'})}</td>
+              <td>${currentPrice !== null 
+                ? currentPrice.toLocaleString('en-US', {style:'currency', currency:'USD'}) + ` (${status})`
+                : 'Price Unavailable'}</td>
+              <td>
+                <button 
+                  class="btn btn-sm btn-danger"
+                  onclick="deleteAlert('${it._id}')">
+                  Delete
+                </button>
+              </td>
+            </tr>`;
+        }
+
+        document.getElementById('alerts-body').innerHTML = rows || 
+          '<tr><td colspan="5">No alerts set.</td></tr>';
+      } catch (err) {
+        document.getElementById('alerts-body').innerHTML =
+          `<tr><td colspan="5" class="text-danger">Error: ${err}</td></tr>`;
+      }
+    }
+
+    async function addAlert(evt) {
+      evt.preventDefault();
+      const coinInput = document.getElementById('alert-coin').value.trim().toLowerCase();
+      const condition = document.getElementById('alert-condition').value;
+      const priceInput = document.getElementById('alert-price').value.trim();
+
+      if (!coinInput || !condition || !priceInput) return;
+
+      try {
+        const resp = await fetch('/api/alerts', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            coin: coinInput,
+            condition: condition,
+            price: priceInput
+          })
+        });
+        const data = await resp.json();
+        if (data.error) {
+          alert("Error: " + data.error);
+          return;
+        }
+        document.getElementById('alert-coin').value = '';
+        document.getElementById('alert-condition').selectedIndex = 0;
+        document.getElementById('alert-price').value = '';
+        loadAlerts();
+      } catch (err) {
+        alert("Fetch error: " + err);
+      }
+    }
+
+    async function deleteAlert(id) {
+      if (!confirm("Delete this alert?")) return;
+      try {
+        const resp = await fetch(`/api/alerts/${id}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (data.error) {
+          alert("Error: " + data.error);
+          return;
+        }
+        loadAlerts();
+      } catch (err) {
+        alert("Fetch error: " + err);
+      }
+    }
+
+    document.getElementById('alert-form').addEventListener('submit', addAlert);
+    window.addEventListener('DOMContentLoaded', loadAlerts);
+  </script>
+{% endblock %}
