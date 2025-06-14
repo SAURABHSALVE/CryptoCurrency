@@ -59,18 +59,28 @@
 
   <script>
     async function loadAlerts() {
-      document.getElementById('alerts-body').innerHTML = 
-        '<tr><td colspan="5">Loading alerts...</td></tr>';
+      const tbody = document.getElementById('alerts-body');
+      tbody.innerHTML = '<tr><td colspan="5">Loading alerts...</td></tr>';
       try {
         const resp = await fetch('/api/alerts');
+        if (!resp.ok) {
+          if (resp.status === 401) {
+            window.location.href = '/login';
+            return;
+          }
+          throw new Error(await resp.json().error || 'Failed to fetch alerts');
+        }
         const items = await resp.json();
         if (!Array.isArray(items)) {
-          document.getElementById('alerts-body').innerHTML =
-            `<tr><td colspan="5" class="text-danger">Error loading.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="5" class="text-danger">Error loading alerts.</td></tr>`;
           return;
         }
 
-        // Fetch current prices for all alerted coins
+        if (items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5">No alerts set.</td></tr>';
+          return;
+        }
+
         const coinSet = Array.from(new Set(items.map(it => it.coin)));
         const pricesResp = await fetch(`/api/prices?coins=${encodeURIComponent(coinSet.join(','))}`);
         const pricesData = await pricesResp.json();
@@ -84,13 +94,9 @@
 
           let status = 'N/A';
           if (currentPrice !== null) {
-            if (cond === 'above' && currentPrice > triggerPrice) {
-              status = 'Triggered';
-            } else if (cond === 'below' && currentPrice < triggerPrice) {
-              status = 'Triggered';
-            } else {
-              status = 'Not Triggered';
-            }
+            status = (cond === 'above' && currentPrice > triggerPrice) || 
+                     (cond === 'below' && currentPrice < triggerPrice) 
+                     ? 'Triggered' : 'Not Triggered';
           }
 
           rows += `
@@ -110,44 +116,40 @@
               </td>
             </tr>`;
         }
-
-        document.getElementById('alerts-body').innerHTML = rows || 
-          '<tr><td colspan="5">No alerts set.</td></tr>';
+        tbody.innerHTML = rows;
       } catch (err) {
-        document.getElementById('alerts-body').innerHTML =
-          `<tr><td colspan="5" class="text-danger">Error: ${err}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-danger">Error: ${err.message}</td></tr>`;
       }
     }
 
     async function addAlert(evt) {
       evt.preventDefault();
-      const coinInput = document.getElementById('alert-coin').value.trim().toLowerCase();
+      const coin = document.getElementById('alert-coin').value.trim().toLowerCase();
       const condition = document.getElementById('alert-condition').value;
-      const priceInput = document.getElementById('alert-price').value.trim();
+      const price = document.getElementById('alert-price').value.trim();
 
-      if (!coinInput || !condition || !priceInput) return;
+      if (!coin || !condition || !price) return;
 
       try {
         const resp = await fetch('/api/alerts', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            coin: coinInput,
-            condition: condition,
-            price: priceInput
-          })
+          body: JSON.stringify({ coin, condition, price })
         });
-        const data = await resp.json();
-        if (data.error) {
-          alert("Error: " + data.error);
-          return;
+        if (!resp.ok) {
+          if (resp.status === 401) {
+            window.location.href = '/login';
+            return;
+          }
+          throw new Error((await resp.json()).error || 'Failed to add alert');
         }
+        const data = await resp.json();
         document.getElementById('alert-coin').value = '';
         document.getElementById('alert-condition').selectedIndex = 0;
         document.getElementById('alert-price').value = '';
         loadAlerts();
       } catch (err) {
-        alert("Fetch error: " + err);
+        alert(`Error: ${err.message}`);
       }
     }
 
@@ -155,14 +157,16 @@
       if (!confirm("Delete this alert?")) return;
       try {
         const resp = await fetch(`/api/alerts/${id}`, { method: 'DELETE' });
-        const data = await resp.json();
-        if (data.error) {
-          alert("Error: " + data.error);
-          return;
+        if (!resp.ok) {
+          if (resp.status === 401) {
+            window.location.href = '/login';
+            return;
+          }
+          throw new Error((await resp.json()).error || 'Failed to delete alert');
         }
         loadAlerts();
       } catch (err) {
-        alert("Fetch error: " + err);
+        alert(`Error: ${err.message}`);
       }
     }
 
