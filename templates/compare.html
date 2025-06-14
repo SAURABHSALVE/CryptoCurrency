@@ -1,76 +1,268 @@
 {% extends "base.html" %}
 {% block content %}
-  <h1 class="mb-4">Compare Coins</h1>
+  <div class="container mt-5">
+    <h1 class="mb-4 text-center">Compare Cryptocurrencies</h1>
 
-  <div class="card mb-4">
-    <div class="card-body">
-      <form id="compare-form">
-        <div class="row g-2">
-          <div class="col-md-4">
-            <input
-              type="text"
-              class="form-control"
-              id="compare-coin1"
-              placeholder="Coin 1 ID (e.g. bitcoin)"
-              required
-            />
+    <div class="card mb-4 shadow-sm">
+      <div class="card-body">
+        <form id="compare-form">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+              <label for="compare-coin1" class="form-label">Coin 1</label>
+              <input
+                type="text"
+                class="form-control"
+                id="compare-coin1"
+                placeholder="e.g., Bitcoin (BTC)"
+                required
+              />
+              <div id="coin1-suggestions" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;"></div>
+            </div>
+            <div class="col-md-5">
+              <label for="compare-coin2" class="form-label">Coin 2</label>
+              <input
+                type="text"
+                class="form-control"
+                id="compare-coin2"
+                placeholder="e.g., Ethereum (ETH)"
+                required
+              />
+              <div id="coin2-suggestions" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;"></div>
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-primary w-100">Compare</button>
+              <button type="button" id="clear-btn" class="btn btn-secondary w-100 mt-2">Clear</button>
+            </div>
           </div>
-          <div class="col-md-4">
-            <input
-              type="text"
-              class="form-control"
-              id="compare-coin2"
-              placeholder="Coin 2 ID (e.g. ethereum)"
-              required
-            />
-          </div>
-          <div class="col-md-4">
-            <button type="submit" class="btn btn-primary w-100">Compare</button>
-          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="compare-result" class="mt-4">
+      <!-- JS will insert comparison -->
+    </div>
+
+    <div id="chart-container" class="mt-4 d-none">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Price Comparison Chart (Last 30 Days)</h5>
+          <canvas id="price-chart"></canvas>
         </div>
-      </form>
+      </div>
     </div>
   </div>
 
-  <div id="compare-result">
-    <!-- JS will insert comparison -->
-  </div>
-
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script>
+    let chartInstance = null;
+
+    // Autocomplete functionality
+    async function fetchCoinList() {
+      try {
+        const resp = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=250');
+        const coins = await resp.json();
+        return coins.map(coin => ({
+          id: coin.id,
+          name: coin.name,
+          symbol: coin.symbol.toUpperCase()
+        }));
+      } catch (err) {
+        console.error('Failed to fetch coin list:', err);
+        return [];
+      }
+    }
+
+    function setupAutocomplete(inputId, suggestionsId) {
+      const input = document.getElementById(inputId);
+      const suggestions = document.getElementById(suggestionsId);
+
+      input.addEventListener('input', async () => {
+        const query = input.value.trim().toLowerCase();
+        if (query.length < 2) {
+          suggestions.innerHTML = '';
+          suggestions.classList.remove('show');
+          return;
+        }
+
+        const coins = await fetchCoinList();
+        const filtered = coins.filter(coin =>
+          coin.name.toLowerCase().includes(query) || 
+          coin.symbol.toLowerCase().includes(query) || 
+          coin.id.toLowerCase().includes(query)
+        ).slice(0, 10);
+
+        suggestions.innerHTML = filtered.map(coin => `
+          <a href="#" class="dropdown-item coin-suggestion" data-id="${coin.id}">
+            ${coin.name} (${coin.symbol})
+          </a>
+        `).join('');
+
+        suggestions.classList.toggle('show', filtered.length > 0);
+
+        suggestions.querySelectorAll('.coin-suggestion').forEach(item => {
+          item.addEventListener('click', (e) => {
+            e.preventDefault();
+            input.value = item.dataset.id;
+            suggestions.innerHTML = '';
+            suggestions.classList.remove('show');
+          });
+        });
+      });
+
+      // Hide suggestions when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+          suggestions.classList.remove('show');
+        }
+      });
+    }
+
+    // Initialize autocomplete for both inputs
+    setupAutocomplete('compare-coin1', 'coin1-suggestions');
+    setupAutocomplete('compare-coin2', 'coin2-suggestions');
+
     async function doCompare(evt) {
       evt.preventDefault();
-      const coin1 = document.getElementById('compare-coin1').value.trim().toLowerCase();
-      const coin2 = document.getElementById('compare-coin2').value.trim().toLowerCase();
-      if (!coin1 || !coin2) return;
+      const coin1Input = document.getElementById('compare-coin1').value.trim().toLowerCase();
+      const coin2Input = document.getElementById('compare-coin2').value.trim().toLowerCase();
 
-      document.getElementById('compare-result').innerHTML = '<div>Loading...</div>';
+      if (!coin1Input || !coin2Input) {
+        document.getElementById('compare-result').innerHTML = 
+          '<div class="alert alert-warning">Please enter both coin IDs.</div>';
+        return;
+      }
+
+      document.getElementById('compare-result').innerHTML = 
+        '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
       try {
-        const resp = await fetch(`/api/compare?coin1=${encodeURIComponent(coin1)}&coin2=${encodeURIComponent(coin2)}`);
+        const resp = await fetch(`/api/compare?coin1=${encodeURIComponent(coin1Input)}&coin2=${encodeURIComponent(coin2Input)}`);
         const data = await resp.json();
         if (data.error) {
           document.getElementById('compare-result').innerHTML = 
-            `<div class="text-danger">Error: ${data.error}</div>`;
+            `<div class="alert alert-danger">Error: ${data.error}</div>`;
           return;
         }
-        const { price1, price2, difference } = data;
-        const differenceFormatted = difference.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
+        // Ensure variables are defined before use
+        const coin1 = data.coin1 || coin1Input;
+        const coin2 = data.coin2 || coin2Input;
+        const {
+          price1, market_cap1, volume_24h1, change_24h1,
+          price2, market_cap2, volume_24h2, change_24h2,
+          historical1, historical2
+        } = data;
+
+        // Format numbers with null checks
+        const formatCurrency = (value) => value != null ? value.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : 'N/A';
+        const formatPercent = (value) => value != null ? value.toFixed(2) + '%' : 'N/A';
+        const difference = (price1 != null && price2 != null) ? price1 - price2 : null;
+        const marketCapDiff = (market_cap1 != null && market_cap2 != null) ? market_cap1 - market_cap2 : null;
+        const volumeDiff = (volume_24h1 != null && volume_24h2 != null) ? volume_24h1 - volume_24h2 : null;
+        const changeDiff = (change_24h1 != null && change_24h2 != null) ? change_24h1 - change_24h2 : null;
+
+        // Update comparison table
         document.getElementById('compare-result').innerHTML = `
-          <div class="card">
+          <div class="card shadow-sm">
             <div class="card-body">
-              <p>
-                <strong>${coin1.charAt(0).toUpperCase()+coin1.slice(1)}:</strong> 
-                ${price1.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}<br>
-                <strong>${coin2.charAt(0).toUpperCase()+coin2.slice(1)}:</strong> 
-                ${price2.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}<br>
-                <strong>Difference (coin1 - coin2):</strong> ${differenceFormatted}
-              </p>
+              <h5 class="card-title">Comparison Results</h5>
+              <table class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th scope="col">Metric</th>
+                    <th scope="col">${coin1.charAt(0).toUpperCase() + coin1.slice(1)}</th>
+                    <th scope="col">${coin2.charAt(0).toUpperCase() + coin2.slice(1)}</th>
+                    <th scope="col">Difference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Price (USD)</td>
+                    <td>${formatCurrency(price1)}</td>
+                    <td>${formatCurrency(price2)}</td>
+                    <td>${formatCurrency(difference)}</td>
+                  </tr>
+                  <tr>
+                    <td>Market Cap</td>
+                    <td>${formatCurrency(market_cap1)}</td>
+                    <td>${formatCurrency(market_cap2)}</td>
+                    <td>${formatCurrency(marketCapDiff)}</td>
+                  </tr>
+                  <tr>
+                    <td>24h Volume</td>
+                    <td>${formatCurrency(volume_24h1)}</td>
+                    <td>${formatCurrency(volume_24h2)}</td>
+                    <td>${formatCurrency(volumeDiff)}</td>
+                  </tr>
+                  <tr>
+                    <td>24h Change</td>
+                    <td class="${change_24h1 != null && change_24h1 >= 0 ? 'text-success' : change_24h1 != null ? 'text-danger' : ''}">
+                      ${formatPercent(change_24h1)}
+                    </td>
+                    <td class="${change_24h2 != null && change_24h2 >= 0 ? 'text-success' : change_24h2 != null ? 'text-danger' : ''}">
+                      ${formatPercent(change_24h2)}
+                    </td>
+                    <td>${formatPercent(changeDiff)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          </div>`;
+          </div>
+        `;
+
+        // Update chart if historical data is available
+        if (historical1?.labels?.length && historical2?.labels?.length) {
+          document.getElementById('chart-container').classList.remove('d-none');
+          if (chartInstance) {
+            chartInstance.destroy();
+          }
+          const ctx = document.getElementById('price-chart').getContext('2d');
+          chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: historical1.labels,
+              datasets: [
+                {
+                  label: coin1.charAt(0).toUpperCase() + coin1.slice(1),
+                  data: historical1.prices,
+                  borderColor: 'rgba(75, 192, 192, 1)',
+                  fill: false
+                },
+                {
+                  label: coin2.charAt(0).toUpperCase() + coin2.slice(1),
+                  data: historical2.prices,
+                  borderColor: 'rgba(255, 99, 132, 1)',
+                  fill: false
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                x: { title: { display: true, text: 'Date' } },
+                y: { title: { display: true, text: 'Price (USD)' } }
+              }
+            }
+          });
+        } else {
+          document.getElementById('chart-container').classList.add('d-none');
+        }
       } catch (err) {
         document.getElementById('compare-result').innerHTML = 
-          `<div class="text-danger">Fetch error: ${err}</div>`;
+          `<div class="alert alert-danger">Error: ${err.message}</div>`;
       }
     }
+
+    // Clear form and results
+    document.getElementById('clear-btn').addEventListener('click', () => {
+      document.getElementById('compare-form').reset();
+      document.getElementById('compare-result').innerHTML = '';
+      document.getElementById('chart-container').classList.add('d-none');
+      if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+      }
+    });
 
     document.getElementById('compare-form').addEventListener('submit', doCompare);
   </script>
