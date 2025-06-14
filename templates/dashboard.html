@@ -1,79 +1,409 @@
 {% extends "base.html" %}
+{% block title %}Dashboard - CryptoLux{% endblock %}
 {% block content %}
-  <h1 class="mb-4">Dashboard</h1>
+<div class="animate__animated animate__fadeInUp">
+    <!-- Personalized Greeting Added from ChatGPT Version -->
+    <h2 class="text-white mb-4">Hey, {{ username|capitalize }} 👋</h2>
+    
+    <!-- Original Main Heading -->
+    <h1 class="mb-5">
+        <i class="fas fa-chart-line me-3"></i>Market Dashboard
+    </h1>
 
-  <div id="market-summary" class="alert alert-info">
-    Fetching market summary...
-  </div>
+    <!-- Market Summary Card -->
+    <div class="card mb-5 shadow-sm pulse">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-1 text-center">
+                    <i class="fas fa-globe-americas fa-3x text-primary"></i>
+                </div>
+                <div class="col-md-11">
+                    <h5 class="card-title mb-3">
+                        <i class="fas fa-robot me-2"></i>AI Market Analysis
+                    </h5>
+                    <div id="market-summary" class="alert alert-info">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Fetching intelligent market summary...
+                    </div>
+                    <button id="retry-summary" class="btn btn-warning mt-2" style="display: none;">
+                        <i class="fas fa-redo-alt me-2"></i>Retry Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-  <h3>Live Prices</h3>
-  <p>Enter comma-separated CoinGecko IDs (e.g. <code>bitcoin,ethereum,ripple</code>) and click “Get Prices.”</p>
-  <div class="input-group mb-3">
-    <input
-      type="text"
-      class="form-control"
-      id="coins-input"
-      placeholder="bitcoin,ethereum,ripple"
-      value="bitcoin,ethereum,ripple,litecoin"
-    />
-    <button id="get-prices" class="btn btn-primary">Get Prices</button>
-  </div>
+    <!-- Live Prices Section -->
+    <div class="card mb-5 shadow-sm">
+        <div class="card-body">
+            <h3 class="card-title text-dark mb-4"><i class="fas fa-coins me-2"></i>Live Cryptocurrency Prices</h3>
+            <div class="row mb-4 align-items-center">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <span class="input-group-text bg-primary text-white"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="coins-input" placeholder="Enter CoinGecko IDs (e.g., bitcoin,ethereum,ripple)" value="bitcoin,ethereum,ripple,litecoin,dogecoin"/>
+                    </div>
+                    <small class="text-muted mt-2 d-block"><i class="fas fa-info-circle me-1"></i>Use comma-separated IDs from CoinGecko.</small>
+                </div>
+                <div class="col-md-4">
+                    <button id="get-prices" class="btn btn-primary w-100">
+                        <i class="fas fa-sync-alt me-2"></i>Get Live Prices
+                    </button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-hashtag me-2"></i>Coin</th>
+                            <th><i class="fas fa-dollar-sign me-2"></i>Price (USD)</th>
+                            <th><i class="fas fa-info-circle me-2"></i>Status</th>
+                            <th><i class="fas fa-clock me-2"></i>Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody id="prices-body">
+                        <tr>
+                            <td colspan="4" class="text-center p-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-  <table class="table table-striped coin-table">
-    <thead>
-      <tr>
-        <th>Coin</th>
-        <th>Price (USD)</th>
-      </tr>
-    </thead>
-    <tbody id="prices-body">
-      <!-- JS will fill this -->
-    </tbody>
-  </table>
+    <!-- Market Trend Section -->
+    <div class="card mb-5 shadow-sm">
+        <div class="card-body">
+            <h3 class="card-title text-dark mb-4"><i class="fas fa-chart-area me-2"></i>Market Trend Analysis</h3>
+            <div class="row g-3 align-items-center mb-4">
+                <div class="col-md-4">
+                    <label for="trend-coin-select" class="form-label">Select Cryptocurrency:</label>
+                    <select id="trend-coin-select" class="form-select">
+                        <option value="bitcoin" selected>Bitcoin</option>
+                        <option value="ethereum">Ethereum</option>
+                        <option value="ripple">Ripple</option>
+                        <option value="litecoin">Litecoin</option>
+                        <option value="dogecoin">Dogecoin</option>
+                    </select>
+                </div>
+                <div class="col-md-8 text-md-end">
+                    <label class="form-label d-block mb-2">Select Date Range:</label>
+                    <div class="btn-group" role="group" id="date-range-selector">
+                        <button type="button" class="btn btn-outline-primary" data-days="7">7D</button>
+                        <button type="button" class="btn btn-outline-primary active" data-days="30">30D</button>
+                        <button type="button" class="btn btn-outline-primary" data-days="90">90D</button>
+                        <button type="button" class="btn btn-outline-primary" data-days="365">1Y</button>
+                    </div>
+                </div>
+            </div>
+            <div id="chart-container" style="position: relative; height: 45vh; width: 100%;">
+                <canvas id="trend-chart"></canvas>
+                <div id="chart-loader" class="chart-loader-overlay" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-  <script>
+    <!-- Quick Actions -->
+    <div class="row text-center">
+        <div class="col-md-4 mb-4">
+            <a href="/portfolio" class="card-link">
+                <div class="card h-100 quick-action-card">
+                    <div class="card-body d-flex flex-column justify-content-center">
+                        <i class="fas fa-wallet fa-3x text-success mb-3"></i>
+                        <h5>Manage Portfolio</h5>
+                        <p class="text-muted">Track your crypto investments.</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4 mb-4">
+            <a href="/compare" class="card-link">
+                <div class="card h-100 quick-action-card">
+                    <div class="card-body d-flex flex-column justify-content-center">
+                        <i class="fas fa-balance-scale fa-3x text-warning mb-3"></i>
+                        <h5>Compare Coins</h5>
+                        <p class="text-muted">Compare prices side-by-side.</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4 mb-4">
+            <a href="/alerts" class="card-link">
+                <div class="card h-100 quick-action-card">
+                    <div class="card-body d-flex flex-column justify-content-center">
+                        <i class="fas fa-bell fa-3x text-danger mb-3"></i>
+                        <h5>Price Alerts</h5>
+                        <p class="text-muted">Set up price notifications.</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Custom CSS for this page -->
+<style>
+    .quick-action-card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .quick-action-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15)!important;
+    }
+    a.card-link {
+        text-decoration: none;
+        color: inherit;
+    }
+    .chart-loader-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10;
+    }
+    .price-positive { color: #198754; }
+    .price-negative { color: #DC3545; }
+</style>
+
+<!-- JS Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+<!-- Custom JS for Dashboard -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    let trendChart;
+    let priceUpdateInterval;
+    const lastPrices = {}; // Store last prices to check for changes
+
+    // --- Helper Functions ---
+    const showToast = (message, type = 'info') => {
+        console.log(`[${type.toUpperCase()}] ${message}`);
+    };
+    const addLoadingAnimation = (button) => {
+        button.disabled = true;
+        button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...`;
+        return () => {
+            button.disabled = false;
+            button.innerHTML = `<i class="fas fa-sync-alt me-2"></i>Get Live Prices`;
+        };
+    };
+    const formatCurrency = (value) => {
+        return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    };
+
+    // --- Core Functions ---
     async function fetchMarketSummary() {
-      try {
-        const resp = await fetch('/api/market_summary');
-        const data = await resp.json();
-        if (data.summary) {
-          document.getElementById('market-summary').textContent = data.summary;
-        } else {
-          document.getElementById('market-summary').textContent = 'Error fetching summary.';
+        const summaryElement = document.getElementById('market-summary');
+        const retryButton = document.getElementById('retry-summary');
+        summaryElement.innerHTML = `<div class="spinner-border spinner-border-sm me-2" role="status"><span class="visually-hidden">Loading...</span></div>Generating AI market analysis...`;
+        retryButton.style.display = 'none';
+
+        try {
+            const resp = await fetch('/api/market_summary');
+            const data = await resp.json();
+            if (data.summary) {
+                summaryElement.innerHTML = `<i class="fas fa-robot me-3"></i><div><strong>AI Market Insight:</strong><br>${data.summary}</div>`;
+                summaryElement.className = 'alert alert-success d-flex align-items-center';
+            } else {
+                throw new Error(data.error || 'Unknown error');
+            }
+        } catch (err) {
+            summaryElement.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Failed to fetch market analysis: ${err.message}`;
+            summaryElement.className = 'alert alert-warning';
+            retryButton.style.display = 'block';
         }
-      } catch (err) {
-        document.getElementById('market-summary').textContent = 'Error: ' + err;
-      }
     }
 
     async function fetchPrices() {
-      const input = document.getElementById('coins-input').value.trim();
-      if (!input) return;
-      document.getElementById('prices-body').innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
-      try {
-        const resp = await fetch(`/api/prices?coins=${encodeURIComponent(input)}`);
-        const data = await resp.json();
-        if (data.error) {
-          document.getElementById('prices-body').innerHTML =
-            `<tr><td colspan="2" class="text-danger">${data.error}</td></tr>`;
-          return;
+        const input = document.getElementById('coins-input').value.trim();
+        const tbody = document.getElementById('prices-body');
+        if (!input) return;
+
+        try {
+            const resp = await fetch(`/api/prices?coins=${encodeURIComponent(input)}`);
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error);
+
+            let rows = '';
+            const currentTime = new Date().toLocaleTimeString();
+            const coinIcons = { bitcoin: '₿', ethereum: 'Ξ', ripple: ' XRP', litecoin: 'Ł', dogecoin: 'Ð' };
+
+            for (const [coin, obj] of Object.entries(data)) {
+                const price = obj.usd;
+                const priceFormatted = price ? formatCurrency(price) : 'N/A';
+                const icon = coinIcons[coin] || '🪙';
+                
+                let priceClass = '';
+                if (lastPrices[coin] && price) {
+                    if (price > lastPrices[coin]) priceClass = 'price-positive';
+                    else if (price < lastPrices[coin]) priceClass = 'price-negative';
+                }
+                lastPrices[coin] = price;
+
+                rows += `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="fs-4 me-3">${icon}</span>
+                                <div>
+                                    <strong>${coin.charAt(0).toUpperCase() + coin.slice(1)}</strong>
+                                    <br><small class="text-muted">${coin.toUpperCase()}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="${priceClass}"><strong>${priceFormatted}</strong></td>
+                        <td><span class="badge bg-success">Live</span></td>
+                        <td><small class="text-muted">${currentTime}</small></td>
+                    </tr>`;
+            }
+            tbody.innerHTML = rows || '<tr><td colspan="4" class="text-center">No data found for the given IDs.</td></tr>';
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger"><i class="fas fa-exclamation-triangle me-2"></i>${err.message}</td></tr>`;
         }
-        let rows = '';
-        for (const [coin, obj] of Object.entries(data)) {
-          const price = obj.usd !== undefined ? obj.usd.toLocaleString('en-US', {style:'currency', currency:'USD'}) : 'N/A';
-          rows += `<tr><td>${coin.charAt(0).toUpperCase() + coin.slice(1)}</td><td>${price}</td></tr>`;
-        }
-        document.getElementById('prices-body').innerHTML = rows || '<tr><td colspan="2">No data.</td></tr>';
-      } catch (err) {
-        document.getElementById('prices-body').innerHTML =
-          `<tr><td colspan="2" class="text-danger">Fetch error: ${err}</td></tr>`;
-      }
     }
 
-    document.getElementById('get-prices').addEventListener('click', fetchPrices);
-    window.addEventListener('DOMContentLoaded', () => {
-      fetchMarketSummary();
-      fetchPrices();
+    async function updateTrendChart() {
+        const selectedCoin = document.getElementById('trend-coin-select').value;
+        const selectedDays = document.querySelector('#date-range-selector .btn.active').dataset.days;
+        const chartLoader = document.getElementById('chart-loader');
+        chartLoader.style.display = 'flex';
+
+        try {
+            const resp = await fetch(`/api/historical_prices?coin=${selectedCoin}&days=${selectedDays}`);
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error);
+
+            const ctx = document.getElementById('trend-chart').getContext('2d');
+            const coinName = selectedCoin.charAt(0).toUpperCase() + selectedCoin.slice(1);
+
+            const chartData = {
+                labels: data.labels,
+                datasets: [
+                    {
+                        label: `${coinName} Price (USD)`,
+                        data: data.prices,
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                    },
+                    {
+                        label: '7-Day Moving Average',
+                        data: data.moving_average,
+                        borderColor: 'rgb(255, 99, 132)',
+                        borderDash: [5, 5],
+                        tension: 0.2,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                    }
+                ]
+            };
+            
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 800, easing: 'easeOutQuart' },
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { unit: 'day', tooltipFormat: 'MMM dd, yyyy' },
+                        grid: { display: false },
+                        ticks: { autoSkip: true, maxTicksLimit: 10, color: '#6c757d' }
+                    },
+                    y: {
+                        title: { display: true, text: 'Price (USD)', color: '#6c757d' },
+                        ticks: { 
+                            color: '#6c757d',
+                            callback: (value) => '$' + value.toLocaleString() 
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, color: '#212529' } },
+                    tooltip: {
+                        enabled: true,
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: { weight: 'bold' },
+                        bodyFont: { size: 14 },
+                        padding: 10,
+                        callbacks: {
+                            label: (context) => {
+                                let label = context.dataset.label || '';
+                                if (label) label += ': ';
+                                if (context.parsed.y !== null) {
+                                    label += formatCurrency(context.parsed.y);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            };
+
+            if (trendChart) {
+                trendChart.data = chartData;
+                trendChart.options = chartOptions;
+                trendChart.update();
+            } else {
+                trendChart = new Chart(ctx, { type: 'line', data: chartData, options: chartOptions });
+            }
+        } catch (err) {
+            showToast(`Failed to update trend chart: ${err.message}`, 'danger');
+        } finally {
+            chartLoader.style.display = 'none';
+        }
+    }
+
+    // --- Event Listeners ---
+    document.getElementById('get-prices').addEventListener('click', () => {
+        const stopLoading = addLoadingAnimation(document.getElementById('get-prices'));
+        fetchPrices().finally(stopLoading);
     });
-  </script>
+
+    document.getElementById('retry-summary').addEventListener('click', fetchMarketSummary);
+    document.getElementById('trend-coin-select').addEventListener('change', updateTrendChart);
+    
+    document.getElementById('date-range-selector').addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') {
+            document.querySelectorAll('#date-range-selector button').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            updateTrendChart();
+        }
+    });
+
+    // --- Initial Load ---
+    function initialize() {
+        fetchMarketSummary();
+        fetchPrices();
+        updateTrendChart();
+        priceUpdateInterval = setInterval(fetchPrices, 60000); // Auto-refresh prices every 60 seconds
+    }
+
+    initialize();
+    
+    // Clean up on page leave
+    window.addEventListener('beforeunload', () => {
+        if (priceUpdateInterval) clearInterval(priceUpdateInterval);
+    });
+});
+</script>
 {% endblock %}
